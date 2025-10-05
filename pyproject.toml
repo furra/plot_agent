@@ -1,0 +1,19 @@
+[project]
+name = "plot-agent"
+version = "0.1.0"
+description = "Langgraph agent that reads data from a database and generates plots with captions and text analysis"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "click>=8.3.0",
+    "langchain-community>=0.3.30",
+    "langchain[google-genai]>=0.3.27",
+    "langgraph>=0.6.8",
+    "sqlalchemy>=2.0.43",
+]
+
+[dependency-groups]
+dev = [
+    "black>=25.9.0",
+    "ipython>=9.6.0",
+]
