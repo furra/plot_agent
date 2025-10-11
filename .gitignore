@@ -11,3 +11,6 @@ wheels/
 
 # Database file
 data/*.db
+
+# langfuse
+langfuse/
