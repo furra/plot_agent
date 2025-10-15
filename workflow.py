@@ -10,9 +10,9 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
+from pydantic import BaseModel
 
 from agents import chart_agent, data_manager, plot_summary_agent, sql_agent
-from tools import PlotData
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -22,11 +22,15 @@ if TYPE_CHECKING:
 load_dotenv()
 
 
+class PlotData(BaseModel):
+    data_path: str | None = None
+    data_columns: list[str] = []
+    plot_path: str | None = None
+
+
 class State(TypedDict):
     """State class for the graph"""
 
-    # TODO: check if BaseMessage can be used
-    messages: list[dict]  # just for testing
     user_query: str
     sql_query: str
     plot_data: PlotData
@@ -34,20 +38,13 @@ class State(TypedDict):
 
 
 def sql_node(state: State) -> Command[Literal["query_data"]]:
-    messages = state.get("messages", [])
-
-    assert messages
-    assert isinstance(messages[0]["content"], str)
-
-    query = messages[0]["content"]
-    # query = state.get("user_query", "")
-    # assert query
+    query = state.get("user_query", "")
+    assert query
 
     sql = sql_agent.invoke(query)
 
     return Command(
         update={
-            "messages": messages + [{"content": sql.query, "name": "sql"}],
             "sql_query": sql.query,
         },
         goto="query_data",
@@ -59,13 +56,6 @@ def query_data_node(state: State) -> Command[Literal["plot"]]:
 
     return Command(
         update={
-            "messages": state.get("messages")
-            + [
-                {
-                    "content": f"The dataset is located at {data_path}",
-                    "name": "data",
-                }
-            ],
             "plot_data": PlotData(
                 data_path=data_path,
                 data_columns=data_manager.data.columns.to_list(),
@@ -76,13 +66,12 @@ def query_data_node(state: State) -> Command[Literal["plot"]]:
 
 
 def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
-    result = chart_agent.invoke(state)
+    plot_path = chart_agent.invoke(state)
     plot_data = state.get("plot_data")
-    plot_data.plot_path = str(result["messages"][0]["content"])
+    plot_data.plot_path = plot_path
 
     return Command(
         update={
-            "messages": state.get("messages", []) + result["messages"],
             "plot_data": plot_data,
         },
         goto="plot_summarizer",
@@ -93,15 +82,9 @@ def plot_summarizer_node(state: State) -> Command[Literal[END]]:  # type: ignore
 
     result = plot_summary_agent.invoke(state)
 
-    response_message = {
-        "content": result.summary,
-        "name": "plot_summarizer",
-    }
-
     return Command(
         update={
-            "messages": state.get("messages", []) + [response_message],
-            "final_answer": result.summary,
+            "plot_summary": result.summary,
         },
         goto=END,
     )
@@ -149,11 +132,7 @@ def stream(
 
     # return list of messages
     return graph.stream(
-        # {"user_query": user_input},
-        {
-            "messages": [{"content": user_input, "name": "user"}],
-            "user_query": user_input,
-        },
+        {"user_query": user_input},
         config,
         stream_mode="values",
     )

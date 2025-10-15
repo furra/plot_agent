@@ -12,7 +12,10 @@ if __name__ == "__main__":
         if user_input.lower() in ["quit", "exit", "stop", "q"]:
             print("Goodbye!")
             break
+        if not user_input:
+            continue
         results = stream(graph, user_input, str(uuid4()))
         output = list(results)
         final_output = output[-1]
-        # final_output["plot_data"].plot_path
+        print(f"Plot explanation:\n{final_output["plot_summary"]}")
+        print(f"Plot location: {final_output["plot_data"].plot_path}")

@@ -1,15 +1,14 @@
 import base64
 from pathlib import Path
 import pickle
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal
 
 from baml_client.sync_client import b
 from baml_py import Image
 from dotenv import load_dotenv
 from langchain.agents import initialize_agent, AgentType
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
+from langchain_core.messages import AIMessage, HumanMessage
 
 # from langfuse import observe
 # from langfuse.langchain import CallbackHandler
@@ -120,7 +119,7 @@ class PlotAgent:
             llm_input = {
                 "input": (
                     f"{self.prompt}\n"
-                    f"File is located at `{state.get("messages")[-1]["content"]}`\n"
+                    f"File is located at `{state.get("plot_data").plot_path}`\n"
                     f"Data columns: {state.get("plot_data").data_columns}"
                     f"User's query:\n{state.get("user_query")}"
                 )
@@ -128,8 +127,14 @@ class PlotAgent:
         elif self.provider == "groq":
             llm_input = {
                 "messages": [
-                    state.get("user_query"),
-                    state.get("messages")[-1]["content"],
+                    HumanMessage(
+                        content=state.get("user_query"),
+                        name="user",
+                    ),
+                    AIMessage(
+                        content=str(state.get("plot_data").plot_path),
+                        name="data_agent",
+                    ),
                 ]
             }
         else:
@@ -149,22 +154,13 @@ class PlotAgent:
         return output
 
     # @observe(name="plot-agent", as_type="generation")
-    def invoke(self, state: "State") -> dict[Literal["messages"], list[dict]]:
+    def invoke(self, state: "State") -> str:
         llm_input = self._prepare_input(state)
         llm_response = self.llm.invoke(llm_input)
 
-        # TODO: check react agent response
         response_content = self._extract_output(llm_response)
-        response = [
-            {
-                "content": response_content,
-                "name": "plot",
-            }
-        ]
 
-        return {
-            "messages": response,
-        }
+        return response_content
 
 
 chart_agent = PlotAgent()
