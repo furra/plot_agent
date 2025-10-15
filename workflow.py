@@ -1,12 +1,10 @@
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator, Literal, TypedDict
 from uuid import uuid4
 
 from dotenv import load_dotenv
 
-from langchain_core.messages import BaseMessage, HumanMessage
-
-# from langfuse.langchain import CallbackHandler
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -20,6 +18,18 @@ if TYPE_CHECKING:
 
 
 load_dotenv()
+
+
+def test_langfuse_connection():
+    langfuse = get_client()
+
+    # TODO: logging instead of print
+    if langfuse.auth_check():
+        print("Langfuse client is authenticated and ready!")
+        return True
+    else:
+        print("Authentication failed. Please check your credentials and host.")
+        return False
 
 
 class PlotData(BaseModel):
@@ -122,30 +132,20 @@ def stream(
     if thread_id is None:
         thread_id = str(uuid4())
 
-    # test method before tracing
-    # langfuse_handler = CallbackHandler()
-
     config: "RunnableConfig" = {
         "configurable": {"thread_id": thread_id},
-        # "callbacks": [langfuse_handler]
     }
 
-    # return list of messages
+    langfuse_connected = test_langfuse_connection()
+
+    if langfuse_connected:
+        config["callbacks"] = [CallbackHandler()]
+    else:
+        # TODO: logging instead of print
+        print("Can't connect to Langfuse, tracing will be off.")
+
     return graph.stream(
         {"user_query": user_input},
         config,
         stream_mode="values",
     )
-
-
-"""
-from langfuse import get_client
-
-langfuse = get_client()
-
-# Verify connection
-if langfuse.auth_check():
-    print("Langfuse client is authenticated and ready!")
-else:
-    print("Authentication failed. Please check your credentials and host.")
-"""

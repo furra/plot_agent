@@ -3,19 +3,18 @@ import os
 from dotenv import load_dotenv
 
 from pandas import DataFrame
-from pydantic import BaseModel, ConfigDict
 from typing import Annotated
 
 from langchain.tools import Tool
 from langchain_core.tools import tool
 from langchain_experimental.utilities import PythonREPL
-from sqlalchemy import create_engine, Row, text
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Add this to the agent
+
 def get_engine():
     return create_engine(f"sqlite:///{DATABASE_URL}")
 

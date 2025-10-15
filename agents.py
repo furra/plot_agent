@@ -10,8 +10,8 @@ from langchain.agents import initialize_agent, AgentType
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage
 
-# from langfuse import observe
-# from langfuse.langchain import CallbackHandler
+from langfuse import observe
+from langfuse.langchain import CallbackHandler
 from langgraph.prebuilt import create_react_agent
 from pandas import DataFrame
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class SQLAgent:
     """This agent converts the text query to a SQL query"""
 
-    # @observe(name="sql-agent", as_type="generation")
+    @observe(name="sql-agent", as_type="generation")
     def invoke(self, query: str, engine: str = "sqlite") -> "SQLQuery":
         return b.GenerateSQLQuery(
             query,
@@ -101,7 +101,7 @@ class PlotAgent:
             )
             self.provider = provider
         elif provider == "google":
-            # callback = CallbackHandler()
+            callback = CallbackHandler()
 
             # TODO: look another alternative, it will be deprecated
             agent = initialize_agent(
@@ -109,7 +109,7 @@ class PlotAgent:
                 init_chat_model("gemini-2.5-flash", model_provider="google_genai"),
                 agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
                 verbose=True,
-                # callbacks=[callback],
+                callbacks=[callback],
             )
 
         self.llm = agent
@@ -119,7 +119,7 @@ class PlotAgent:
             llm_input = {
                 "input": (
                     f"{self.prompt}\n"
-                    f"File is located at `{state.get("plot_data").plot_path}`\n"
+                    f"File is located at `{state.get("plot_data").data_path}`\n"
                     f"Data columns: {state.get("plot_data").data_columns}"
                     f"User's query:\n{state.get("user_query")}"
                 )
@@ -153,7 +153,7 @@ class PlotAgent:
             output = ""
         return output
 
-    # @observe(name="plot-agent", as_type="generation")
+    @observe(name="plot-agent", as_type="generation")
     def invoke(self, state: "State") -> str:
         llm_input = self._prepare_input(state)
         llm_response = self.llm.invoke(llm_input)
@@ -186,7 +186,7 @@ class PlotSummaryAgent:
                 "image/png", base64.b64encode(image_b64).decode("utf-8")
             )
 
-    # @observe(name="sql-agent", as_type="generation")
+    @observe(name="sql-agent", as_type="generation")
     def invoke(self, state: "State") -> "PlotSummary":
         img = self._get_base64_img(state.get("plot_data").plot_path)
         return b.GeneratePlotSummary(
