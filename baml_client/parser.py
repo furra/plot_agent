@@ -24,6 +24,12 @@ class LlmResponseParser:
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
 
+    def GeneratePlotSummary(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.PlotSummary:
+        result = self.__options.merge_options(baml_options).parse_response(function_name="GeneratePlotSummary", llm_response=llm_response, mode="request")
+        return typing.cast(types.PlotSummary, result)
+
     def GenerateSQLQuery(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.SQLQuery:
@@ -37,6 +43,12 @@ class LlmStreamParser:
 
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
+
+    def GeneratePlotSummary(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.PlotSummary:
+        result = self.__options.merge_options(baml_options).parse_response(function_name="GeneratePlotSummary", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.PlotSummary, result)
 
     def GenerateSQLQuery(
         self, llm_response: str, baml_options: BamlCallOptions = {},

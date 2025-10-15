@@ -12,6 +12,6 @@ if __name__ == "__main__":
             break
         results = stream(graph, user_input, str(uuid4()))
         output = list(results)
-        breakpoint()
+
         for message in output[-1]["messages"]:
-            message.pretty_print()
+            print(message)

@@ -23,8 +23,11 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (1)
+# Generated classes (2)
 # #########################################################################
+
+class PlotSummary(BaseModel):
+    summary: typing.Optional[str] = None
 
 class SQLQuery(BaseModel):
     query: typing.Optional[str] = None

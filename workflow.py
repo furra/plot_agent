@@ -11,8 +11,8 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 from pandas import DataFrame
 
-from agents import chart_agent, plot_summary_agent, sql_agent
-from tools import PlotData, run_sql
+from agents import chart_agent, data_manager, plot_summary_agent, sql_agent
+from tools import PlotData
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -24,7 +24,7 @@ load_dotenv()
 
 class State(TypedDict):
     """State class for the graph"""
-    messages: list[BaseMessage] # just for testing
+    messages: list[dict] # just for testing
     user_query: str
     sql_query: str
     plot_data: PlotData
@@ -35,9 +35,9 @@ def sql_node(state: State) -> Command[Literal["query_data"]]:
     messages = state.get("messages", [])
 
     assert messages
-    assert isinstance(messages[0].content, str)
+    assert isinstance(messages[0]["content"], str)
 
-    query = messages[0].content
+    query = messages[0]["content"]
     # query = state.get("user_query", "")
     # assert query
 
@@ -45,8 +45,10 @@ def sql_node(state: State) -> Command[Literal["query_data"]]:
 
     return Command(
         update={
-            "messages": state.get("messages", [])
-            + [HumanMessage(content=sql.query, name="sql")],
+            "messages": messages + [{
+                "content": sql.query,
+                "name": "sql"
+            }],
             "sql_query": sql.query,
         },
         goto="query_data",
@@ -54,19 +56,15 @@ def sql_node(state: State) -> Command[Literal["query_data"]]:
 
 
 def query_data_node(state: State) -> Command[Literal["plot"]]:
-    data = run_sql(state.get("sql_query", ""))
-    # TODO: generate unique path
-    path = str(Path("data/queried_data.pkl").resolve())
-    data.save_to_path(path)
+    data_path = data_manager.get_data_and_save(state.get("sql_query", ""))
 
     return Command(
         update={
-            "messages": state.get("messages") + [
-                HumanMessage(
-                    content=f"Plot the dataset at {path}"
-                )
-            ],
-            "plot_data": data,
+            "messages": state.get("messages") + [{
+                "content": f"The dataset is located at {data_path}",
+                "name": "data",
+            }],
+            "plot_data": PlotData(data_path=data_path),
         },
         goto="plot",
     )
@@ -75,15 +73,13 @@ def query_data_node(state: State) -> Command[Literal["plot"]]:
 def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
     result = chart_agent.invoke(state)
 
-    breakpoint()
-    result["messages"][-1] = HumanMessage(
-        content=result["messages"][-1].content,
-        name="plot",
-    )
+    plot_data = state.get("plot_data")
+    plot_data.plot_path = str(result["messages"][0]["content"])
 
     return Command(
         update={
             "messages": state.get("messages", []) + result["messages"],
+            "plot_data": plot_data
         },
         goto="plot_summarizer",
     )
@@ -91,19 +87,17 @@ def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
 
 def plot_summarizer_node(state: State) -> Command[Literal[END]]:  # type: ignore
 
-    breakpoint()
     result = plot_summary_agent.invoke(state)
 
-    breakpoint()
-    result["messages"][-1] = HumanMessage(
-        content=result["messages"][-1].content,
-        name="plot_summarizer",
-    )
+    response_message = {
+        "content": result.summary,
+        "name": "plot_summarizer",
+    }
 
     return Command(
         update={
-            "messages": state.get("messages", []) + result["messages"],
-            "final_answer": result["messages"][-1].content,
+            "messages": state.get("messages", []) + [response_message],
+            "final_answer": result.summary,
         },
         goto=END,
     )
@@ -153,7 +147,7 @@ def stream(
     return graph.stream(
         # {"user_query": user_input},
         {
-            "messages": [HumanMessage(content=user_input)],
+            "messages": [{"content": user_input, "name":"user"}],
             "user_query": user_input,
         },
         config,

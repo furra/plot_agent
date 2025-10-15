@@ -41,8 +41,11 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (1)
+# Generated classes (2)
 # #########################################################################
+
+class PlotSummary(BaseModel):
+    summary: str
 
 class SQLQuery(BaseModel):
     query: str

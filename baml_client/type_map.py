@@ -16,6 +16,9 @@ from . import stream_types
 
 type_map = {
 
+    "types.PlotSummary": types.PlotSummary,
+    "stream_types.PlotSummary": stream_types.PlotSummary,
+
     "types.SQLQuery": types.SQLQuery,
     "stream_types.SQLQuery": stream_types.SQLQuery,
 
