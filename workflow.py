@@ -5,11 +5,11 @@ from uuid import uuid4
 from dotenv import load_dotenv
 
 from langchain_core.messages import BaseMessage, HumanMessage
+
 # from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
-from pandas import DataFrame
 
 from agents import chart_agent, data_manager, plot_summary_agent, sql_agent
 from tools import PlotData
@@ -24,7 +24,9 @@ load_dotenv()
 
 class State(TypedDict):
     """State class for the graph"""
-    messages: list[dict] # just for testing
+
+    # TODO: check if BaseMessage can be used
+    messages: list[dict]  # just for testing
     user_query: str
     sql_query: str
     plot_data: PlotData
@@ -45,10 +47,7 @@ def sql_node(state: State) -> Command[Literal["query_data"]]:
 
     return Command(
         update={
-            "messages": messages + [{
-                "content": sql.query,
-                "name": "sql"
-            }],
+            "messages": messages + [{"content": sql.query, "name": "sql"}],
             "sql_query": sql.query,
         },
         goto="query_data",
@@ -60,11 +59,17 @@ def query_data_node(state: State) -> Command[Literal["plot"]]:
 
     return Command(
         update={
-            "messages": state.get("messages") + [{
-                "content": f"The dataset is located at {data_path}",
-                "name": "data",
-            }],
-            "plot_data": PlotData(data_path=data_path),
+            "messages": state.get("messages")
+            + [
+                {
+                    "content": f"The dataset is located at {data_path}",
+                    "name": "data",
+                }
+            ],
+            "plot_data": PlotData(
+                data_path=data_path,
+                data_columns=data_manager.data.columns.to_list(),
+            ),
         },
         goto="plot",
     )
@@ -72,14 +77,13 @@ def query_data_node(state: State) -> Command[Literal["plot"]]:
 
 def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
     result = chart_agent.invoke(state)
-
     plot_data = state.get("plot_data")
     plot_data.plot_path = str(result["messages"][0]["content"])
 
     return Command(
         update={
             "messages": state.get("messages", []) + result["messages"],
-            "plot_data": plot_data
+            "plot_data": plot_data,
         },
         goto="plot_summarizer",
     )
@@ -147,7 +151,7 @@ def stream(
     return graph.stream(
         # {"user_query": user_input},
         {
-            "messages": [{"content": user_input, "name":"user"}],
+            "messages": [{"content": user_input, "name": "user"}],
             "user_query": user_input,
         },
         config,

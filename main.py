@@ -1,4 +1,6 @@
+from pprint import pprint
 from uuid import uuid4
+
 from workflow import initialize_graph, stream
 
 
@@ -12,6 +14,5 @@ if __name__ == "__main__":
             break
         results = stream(graph, user_input, str(uuid4()))
         output = list(results)
-
-        for message in output[-1]["messages"]:
-            print(message)
+        final_output = output[-1]
+        # final_output["plot_data"].plot_path

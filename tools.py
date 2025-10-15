@@ -12,10 +12,13 @@ from sqlalchemy import create_engine, Row, text
 
 class PlotData(BaseModel):
     data_path: str | None = None
+    data_columns: list[str] = []
     plot_path: str | None = None
+
 
 # Add this to the agent
 engine = create_engine("sqlite:///data/database.db")
+
 
 def run_sql(query: str) -> DataFrame:
     """Executes validated SQL on the database"""
@@ -37,6 +40,7 @@ def get_schema():
 
 repl = PythonREPL()
 
+
 # for not gemini models
 @tool
 def python_repl_tool_react(
@@ -52,6 +56,7 @@ def python_repl_tool_react(
 
     return f"Successfully executed:\n```python\n{code}\n```\nStdout: {result}"
 
+
 # for gemini
 def repl_tool_gemini(code: str) -> str:
     """Use this to execute python code. You will be used to execute python code
@@ -63,6 +68,7 @@ def repl_tool_gemini(code: str) -> str:
         return f"Failed to execute. Error: {repr(e)}"
 
     return f"Successfully executed:\n```python\n{code}\n```\nStdout: {result}"
+
 
 python_repl_tool = Tool(
     name="Python REPL",

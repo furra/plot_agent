@@ -10,6 +10,7 @@ from langchain.agents import initialize_agent, AgentType
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
+
 # from langfuse import observe
 # from langfuse.langchain import CallbackHandler
 from langgraph.prebuilt import create_react_agent
@@ -26,14 +27,6 @@ if TYPE_CHECKING:
     from workflow import State
 
 
-base_agent_prompt = (
-    "You are a helpful AI assistant, collaborating with other assistants. "
-    "Use the provided tools to progress towards answering the question. "
-    "If you are unable to fully answer, that's OK, another assistant with different tools "
-    "will help where you left off. Execute what you can to make progress."
-)
-
-
 class SQLAgent:
     """This agent converts the text query to a SQL query"""
 
@@ -48,8 +41,10 @@ class SQLAgent:
 
 sql_agent = SQLAgent()
 
+
 class DataManager:
     """This manager retrieves data from the database and handles data serialization"""
+
     sql: str = ""
     data: DataFrame
 
@@ -72,11 +67,27 @@ class DataManager:
         data_path = self.save_data()
         return data_path
 
+
 data_manager = DataManager()
+
 
 class PlotAgent:
     llm: "AgentExecutor | CompiledStateGraph"
     provider: Literal["google", "groq"] = "google"
+    prompt: str = (
+        "You are a plotting agent that uses plotly and seaborn to generate plots."
+        "You are working with a data extractor colleague. You will be given a pickled DataFrame file path to plot. "
+        "The plot should answer what the user is asking on their query.\n\n"
+        "You are NOT allowed to transform or aggregate data in any way. "
+        "The DataFrame is already processed and ready for visualization. "
+        "Do NOT call pandas methods such as groupby, pivot, or apply. "
+        "Use the existing columns directly for plotting.\n\n"
+        "Generate one plot file; you can do a multiplot if it applies. "
+        "If the user's query is too complex, focus on the main question.\n\n"
+        "Generate the plot first, then save the plot to a file (png) in the same folder that the data file is and "
+        "provide its path in your final output, e.g., `Final Answer: /path/to/plot/file.png` (without the backticks)"
+    )
+    data_columns: list[str]
 
     def __init__(self, provider: Literal["google", "groq"] = "google") -> None:
         supported_providers = {"groq", "google"}
@@ -87,15 +98,7 @@ class PlotAgent:
             agent = create_react_agent(
                 init_chat_model("qwen/qwen3-32b", model_provider="groq"),
                 [python_repl_tool_react],
-                prompt=(
-                    f"{base_agent_prompt}\n"
-                    "You are a plotting agent that uses plotly and seaborn to generate plots."
-                    "You are working with a data extractor colleague. You will be given a pickle file and its location will be given. "
-                    "Generate one plot; if the user's full query is too complicated to answer in one plot, stick to one "
-                    "question/analysis, preferably the last sentence.\n"
-                    "Generate the plot first, then save the plot to a file in the same folder that the data file is. "
-                    "Provide the path in your output."
-                )
+                prompt=self.prompt,
             )
             self.provider = provider
         elif provider == "google":
@@ -116,27 +119,23 @@ class PlotAgent:
         if self.provider == "google":
             llm_input = {
                 "input": (
-                    f"{base_agent_prompt}\n"
-                    "You are a plotting agent that uses plotly and seaborn to generate plots."
-                    "You are working with a data extractor colleague. You will be given a pickled DataFrame file path to plot; "
-                    "The plot should answer what the user is asking on their query.\n"
-                    "Generate one plot; if the user's full query is too complicated to answer in one plot, stick to one "
-                    "question/analysis, preferably the last sentence.\n"
-                    "Generate the plot first, then save the plot to a file (png) in the same folder that the data file is and "
-                    "provide its path as your output, without any additional text; e.g.: `/path/to/plot/file.png`\n"
-                    f"{state.get("messages")[-1]["content"]}"
+                    f"{self.prompt}\n"
+                    f"File is located at `{state.get("messages")[-1]["content"]}`\n"
+                    f"Data columns: {state.get("plot_data").data_columns}"
                     f"User's query:\n{state.get("user_query")}"
                 )
             }
         elif self.provider == "groq":
             llm_input = {
-                "messages": [state.get("user_query"), state.get("messages")[-1]["content"]]
+                "messages": [
+                    state.get("user_query"),
+                    state.get("messages")[-1]["content"],
+                ]
             }
         else:
             # TODO: log this
             llm_input = {}
         return llm_input
-
 
     def _extract_output(self, llm_response: dict[str, Any]) -> str:
         if self.provider == "google":
@@ -151,19 +150,22 @@ class PlotAgent:
 
     # @observe(name="plot-agent", as_type="generation")
     def invoke(self, state: "State") -> dict[Literal["messages"], list[dict]]:
-        llm_input =  self._prepare_input(state)
+        llm_input = self._prepare_input(state)
         llm_response = self.llm.invoke(llm_input)
 
         # TODO: check react agent response
         response_content = self._extract_output(llm_response)
-        response = [{
-            "content": response_content,
-            "name": "plot",
-        }]
+        response = [
+            {
+                "content": response_content,
+                "name": "plot",
+            }
+        ]
 
         return {
             "messages": response,
         }
+
 
 chart_agent = PlotAgent()
 
@@ -184,8 +186,9 @@ class PlotSummaryAgent:
 
         with open(path_str, "rb") as image_file:
             image_b64 = image_file.read()
-            return Image.from_base64("image/png", base64.b64encode(image_b64).decode("utf-8"))
-
+            return Image.from_base64(
+                "image/png", base64.b64encode(image_b64).decode("utf-8")
+            )
 
     # @observe(name="sql-agent", as_type="generation")
     def invoke(self, state: "State") -> "PlotSummary":
@@ -194,5 +197,6 @@ class PlotSummaryAgent:
             img,
             state.get("user_query"),
         )
+
 
 plot_summary_agent = PlotSummaryAgent()
