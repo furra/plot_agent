@@ -1,6 +1,7 @@
 // Defining a data model.
 class PlotSummary {
   summary string
+  caption string
 }
 
 function GeneratePlotSummary(image: image, user_query: string) -> PlotSummary {
@@ -11,6 +12,8 @@ function GeneratePlotSummary(image: image, user_query: string) -> PlotSummary {
     {{ image }}
     The summary should be no more than 5 sentences and should not mention the plot itself.
     Add a conclusion or insight sentence at the end if it will help to answer the user's question.
+
+    Also provide a caption for the plot which will be used to show it to the user.
 
     Input question:
     {{ user_query }}

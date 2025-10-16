@@ -28,6 +28,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
 
 class PlotSummary(BaseModel):
     summary: typing.Optional[str] = None
+    caption: typing.Optional[str] = None
 
 class SQLQuery(BaseModel):
     query: typing.Optional[str] = None

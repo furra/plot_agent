@@ -36,6 +36,7 @@ class PlotData(BaseModel):
     data_path: str | None = None
     data_columns: list[str] = []
     plot_path: str | None = None
+    plot_caption: str = ""
 
 
 class State(TypedDict):
@@ -91,10 +92,13 @@ def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
 def plot_summarizer_node(state: State) -> Command[Literal[END]]:  # type: ignore
 
     result = plot_summary_agent.invoke(state)
+    plot_data = state.get("plot_data")
+    plot_data.plot_caption = result.caption
 
     return Command(
         update={
             "plot_summary": result.summary,
+            "plot_data": plot_data,
         },
         goto=END,
     )
