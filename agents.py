@@ -47,23 +47,22 @@ class DataManager:
     sql: str = ""
     data: DataFrame
 
-    def save_data(self) -> str:
-        path = str(self.generate_data_path())
+    def save_data(self, uid: str) -> str:
+        path = str(self.generate_data_path(uid))
         with open(path, "wb") as f:
             pickle.dump(self.data, f)
         return path
 
-    def generate_data_path(self) -> Path:
-        # TODO: generate unique filename
-        path = Path("data/queried_data.pkl").resolve()
+    def generate_data_path(self, uid: str) -> Path:
+        path = Path(f"data/data_{uid}.pkl").resolve()
         return path
 
-    def get_data_and_save(self, query: str) -> str:
+    def get_data_and_save(self, query: str, uid: str) -> str:
         if not query:
             raise ValueError(f"SQL query is empty")
         self.sql = query
         self.data = run_sql(self.sql)
-        data_path = self.save_data()
+        data_path = self.save_data(uid)
         return data_path
 
 

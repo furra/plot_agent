@@ -1,8 +1,9 @@
+import sys
 from typing import TYPE_CHECKING, Any, Iterator, Literal, TypedDict
 from uuid import uuid4
 
 from dotenv import load_dotenv
-
+from httpx import ConnectError
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
@@ -42,6 +43,7 @@ class PlotData(BaseModel):
 class State(TypedDict):
     """State class for the graph"""
 
+    unique_id: str
     user_query: str
     sql_query: str
     plot_data: PlotData
@@ -63,7 +65,9 @@ def sql_node(state: State) -> Command[Literal["query_data"]]:
 
 
 def query_data_node(state: State) -> Command[Literal["plot"]]:
-    data_path = data_manager.get_data_and_save(state.get("sql_query", ""))
+    data_path = data_manager.get_data_and_save(
+        state.get("sql_query", ""), state.get("unique_id")
+    )
 
     return Command(
         update={
@@ -140,16 +144,26 @@ def stream(
         "configurable": {"thread_id": thread_id},
     }
 
-    langfuse_connected = test_langfuse_connection()
+    try:
+        langfuse_connected = test_langfuse_connection()
+        if langfuse_connected:
+            config["callbacks"] = [CallbackHandler()]
+        else:
+            # TODO: logging instead of print
+            # TODO: still tries to connect to langfuse
+            print("Can't connect to Langfuse, tracing will be off.")
+    except ConnectError as e:
+        print("Connection error, tracing not enabled!")
+        if input("Continue? [Y|N]: ").lower() != "y":
+            print("Aborting...")
+            sys.exit()
 
-    if langfuse_connected:
-        config["callbacks"] = [CallbackHandler()]
-    else:
-        # TODO: logging instead of print
-        print("Can't connect to Langfuse, tracing will be off.")
 
     return graph.stream(
-        {"user_query": user_input},
+        {
+            "user_query": user_input,
+            "unique_id": thread_id,
+        },
         config,
         stream_mode="values",
     )
