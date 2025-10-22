@@ -1,4 +1,4 @@
-import sys
+import os
 from typing import TYPE_CHECKING, Any, Iterator, Literal, TypedDict
 from uuid import uuid4
 
@@ -36,6 +36,7 @@ def test_langfuse_connection():
 class PlotData(BaseModel):
     data_path: str | None = None
     data_columns: list[str] = []
+    data_head: str | None = None
     plot_path: str | None = None
     plot_caption: str = ""
 
@@ -46,13 +47,15 @@ class State(TypedDict):
     unique_id: str
     user_query: str
     sql_query: str
+    data_query: str
     plot_data: PlotData
     plot_summary: str
 
 
-def sql_node(state: State) -> Command[Literal["query_data"]]:
+def sql_node(state: State) -> Command[Literal["extract_data"]]:
     query = state.get("user_query", "")
-    assert query
+    if not query:
+        raise ValueError("Query can't be empty")
 
     sql = sql_agent.invoke(query)
 
@@ -60,11 +63,11 @@ def sql_node(state: State) -> Command[Literal["query_data"]]:
         update={
             "sql_query": sql.query,
         },
-        goto="query_data",
+        goto="extract_data",
     )
 
 
-def query_data_node(state: State) -> Command[Literal["plot"]]:
+def extract_data_node(state: State) -> Command[Literal["plot"]]:
     data_path = data_manager.get_data_and_save(
         state.get("sql_query", ""), state.get("unique_id")
     )
@@ -122,7 +125,7 @@ def initialize_graph() -> "CompiledStateGraph":
     graph = StateGraph(State)
 
     graph.add_node("sql_generator", sql_node)
-    graph.add_node("query_data", query_data_node)
+    graph.add_node("extract_data", extract_data_node)
     graph.add_node("plot", plot_node)
     graph.add_node("plot_summarizer", plot_summarizer_node)
 
@@ -131,12 +134,7 @@ def initialize_graph() -> "CompiledStateGraph":
     return graph.compile(checkpointer=memory)
 
 
-def stream(
-    graph: "CompiledStateGraph",
-    user_input: str,
-    thread_id: str | None = None,
-) -> Iterator[dict[str, Any] | Any]:
-    """Streams user input to the graph and returns all messages"""
+def create_config(thread_id: str | None = None) -> "RunnableConfig":
     if thread_id is None:
         thread_id = str(uuid4())
 
@@ -150,19 +148,31 @@ def stream(
             config["callbacks"] = [CallbackHandler()]
         else:
             # TODO: logging instead of print
-            # TODO: still tries to connect to langfuse
-            print("Can't connect to Langfuse, tracing will be off.")
+            print("Can't connect to Langfuse, tracing will be disabled.")
+            os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
     except ConnectError as e:
-        print("Connection error, tracing not enabled!")
-        if input("Continue? [Y|N]: ").lower() != "y":
-            print("Aborting...")
-            sys.exit()
+        print("Connection error, tracing will be disabled!")
+        os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
+
+    return config
 
 
+def stream(
+    graph: "CompiledStateGraph",
+    user_input: str,
+    thread_id: str | None = None,
+) -> Iterator[dict[str, Any] | Any]:
+    """Streams user input to the graph and returns all messages"""
+
+    config = create_config(thread_id)
+
+    # check invoke to get the last response instead
     return graph.stream(
         {
             "user_query": user_input,
-            "unique_id": thread_id,
+            "unique_id": config.get("configurable", {"thread_id": str(uuid4())})[
+                "thread_id"
+            ],
         },
         config,
         stream_mode="values",

@@ -75,7 +75,7 @@ class PlotAgent:
     prompt: str = (
         "You are a plotting agent that uses plotly and seaborn to generate plots."
         "You are working with a data extractor colleague. You will be given a pickled DataFrame file path to plot. "
-        "The plot should answer what the user is asking on their query.\n\n"
+        "The user will give you the instructions of the plot or a query that the plot should answer.\n\n"
         "You are NOT allowed to transform or aggregate data in any way. "
         "The DataFrame is already processed and ready for visualization. "
         "Do NOT call pandas methods such as groupby, pivot, or apply. "
@@ -120,14 +120,14 @@ class PlotAgent:
                     f"{self.prompt}\n"
                     f"File is located at `{state.get("plot_data").data_path}`\n"
                     f"Data columns: {state.get("plot_data").data_columns}"
-                    f"User's query:\n{state.get("user_query")}"
+                    f"User's query:\n{state.get("data_query")}"
                 )
             }
         elif self.provider == "groq":
             llm_input = {
                 "messages": [
                     HumanMessage(
-                        content=state.get("user_query"),
+                        content=state.get("data_query"),
                         name="user",
                     ),
                     AIMessage(
@@ -190,7 +190,7 @@ class PlotSummaryAgent:
         img = self._get_base64_img(state.get("plot_data").plot_path)
         return b.GeneratePlotSummary(
             img,
-            state.get("user_query"),
+            state.get("data_query"),
         )
 
 

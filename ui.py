@@ -60,6 +60,7 @@ if prompt:
 if google_api_key:
     if prompt:
         with st.spinner("Thinking..."):
+            # use invoke instead
             response = stream(workflow, prompt, st.session_state.conversation_id)
             last_message = list(response)[-1]
         with st.chat_message("assistant"):
