@@ -1,6 +1,10 @@
+import os
 from uuid import uuid4
+from dotenv import load_dotenv
 from langgraph.types import Command
 import fire
+
+load_dotenv()
 
 
 class AIAgent:
@@ -73,4 +77,6 @@ class AIAgent:
 
 
 if __name__ == "__main__":
+    if os.getenv("TEST_MODE", "False").lower() == "true":
+        print("Test mode enabled!")
     fire.Fire(AIAgent)

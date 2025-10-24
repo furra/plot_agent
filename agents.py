@@ -1,9 +1,12 @@
 import base64
-from pathlib import Path
+import os
 import pickle
+
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from baml_client.sync_client import b
+from baml_client.types import PlotSummary, SQLQuery
 from baml_py import Image
 from dotenv import load_dotenv
 from langchain.agents import initialize_agent, AgentType
@@ -19,8 +22,9 @@ from tools import get_schema, python_repl_tool_react, python_repl_tool, run_sql
 
 load_dotenv()
 
+TEST_MODE = os.getenv("TEST_MODE", "False").lower() == "true"
+
 if TYPE_CHECKING:
-    from baml_client.types import PlotSummary, SQLQuery
     from langchain.agents.agent import AgentExecutor
     from langgraph.graph.state import CompiledStateGraph
     from workflow import State
@@ -30,7 +34,11 @@ class SQLAgent:
     """This agent converts the text query to a SQL query"""
 
     @observe(name="sql-agent", as_type="generation")
-    def invoke(self, query: str, engine: str = "sqlite") -> "SQLQuery":
+    def invoke(self, query: str, engine: str = "sqlite") -> SQLQuery:
+        if TEST_MODE:
+            return SQLQuery(
+                query="SELECT category, COUNT(*) FROM purchases GROUP BY category;",
+            )
         return b.GenerateSQLQuery(
             query,
             get_schema(),
@@ -58,6 +66,8 @@ class DataManager:
         return path
 
     def get_data_and_save(self, query: str, uid: str) -> str:
+        if TEST_MODE:
+            return self.get_data_test(query, uid)
         if not query:
             raise ValueError(f"SQL query is empty")
         self.sql = query
@@ -164,6 +174,8 @@ class PlotAgent:
 
     @observe(name="plot-agent", as_type="generation")
     def invoke(self, state: "State") -> str:
+        if TEST_MODE:
+            return self.plot_path_test(state)
         llm_input = self._prepare_input(state)
         llm_response = self.llm.invoke(llm_input)
 
@@ -199,7 +211,18 @@ class PlotSummaryAgent:
             )
 
     @observe(name="sql-agent", as_type="generation")
-    def invoke(self, state: "State") -> "PlotSummary":
+    def invoke(self, state: "State") -> PlotSummary:
+        if TEST_MODE:
+            return PlotSummary(
+                summary=(
+                    "Among various product categories, clothing items are the most numerous, with approximately "
+                    "1700 instances. Accessories represent the second-largest category, totaling around 1200 "
+                    "instances. Footwear has a count of about 600, while outerwear is the least frequent category, "
+                    "with roughly 350 instances. This distribution suggests a significantly higher volume or demand "
+                    "for clothing and accessories compared to footwear and outerwear."
+                ),
+                caption="Distribution of item counts across different product categories.",
+            )
         img = self._get_base64_img(state.get("plot_data").plot_path)
         return b.GeneratePlotSummary(
             img,
