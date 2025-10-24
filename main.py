@@ -7,9 +7,11 @@ class AIAgent:
     """AI agent class that calls the simple graph or the human in the loop graph"""
 
     def agent(self):
-        from workflow import initialize_graph, stream
+        from workflow import initialize_graph, create_config
 
         graph = initialize_graph()
+        unique_id = str(uuid4())
+        config = create_config(unique_id)
 
         while True:
             user_input = input("User: ")
@@ -18,20 +20,24 @@ class AIAgent:
                 break
             if not user_input:
                 continue
-            # use invoke instead
-            results = stream(graph, user_input, str(uuid4()))
-            output = list(results)
-            output = output[-1]
+
+            output = graph.invoke(
+                {
+                    "user_query": user_input,
+                    "unique_id": unique_id,
+                },
+                config,
+            )
             print(f"Plot explanation:\n{output["plot_summary"]}")
-            print(f"Plot location: {output["plot_data"].plot_path}")
+            print(f"Plot location: {output["plot_data"].plot_path}\n")
 
     def hitl(self):
         from workflow import create_config
         from workflow_hitl import initialize_graph
 
         graph = initialize_graph()
-        thread_id = str(uuid4())
-        config = create_config(thread_id)
+        unique_id = str(uuid4())
+        config = create_config(unique_id)
 
         while True:
             user_input = input("User: ")
@@ -43,7 +49,7 @@ class AIAgent:
 
             params = {
                 "user_query": user_input,
-                "unique_id": thread_id,
+                "unique_id": unique_id,
             }
             while True:
                 response = graph.invoke(params, config)
@@ -53,28 +59,14 @@ class AIAgent:
                     state = graph.get_state(config)
                     current_node = state.tasks[0].name
 
-                    if (
-                        "confirm" in current_node
-                    ):  # "user_confirm_sql", "user_confirm_data"
-                        print(interrupt_text)
-                        should_continue = input().lower().startswith("y")
-                        params = Command(resume=should_continue)
-                        if not should_continue:
-                            graph.invoke(params, config=config)
-                            break
-                    elif current_node == "data_query":
+                    if current_node == "data_query":
                         if response.get("plot_summary") and response.get("plot_data"):
                             print(f"Plot explanation:\n{response.get("plot_summary")}")
                             print(
                                 f"Plot location:\n{response["plot_data"].plot_path}\n"
                             )
-
-                        print(interrupt_text)
-                        data_query = input()
-                        params = Command(resume=data_query)
-                    else:
-                        print(f"Unknown node: {current_node}")
-                        break
+                    print(interrupt_text)
+                    params = Command(resume=input())
                 else:
                     print("Ending...")
                     break

@@ -53,15 +53,16 @@ class State(TypedDict):
 
 
 def sql_node(state: State) -> Command[Literal["extract_data"]]:
-    query = state.get("user_query", "")
-    if not query:
+    user_query = state.get("user_query", "")
+    if not user_query:
         raise ValueError("Query can't be empty")
 
-    sql = sql_agent.invoke(query)
+    sql = sql_agent.invoke(user_query)
 
     return Command(
         update={
             "sql_query": sql.query,
+            "data_query": user_query,
         },
         goto="extract_data",
     )
@@ -155,25 +156,3 @@ def create_config(thread_id: str | None = None) -> "RunnableConfig":
         os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
 
     return config
-
-
-def stream(
-    graph: "CompiledStateGraph",
-    user_input: str,
-    thread_id: str | None = None,
-) -> Iterator[dict[str, Any] | Any]:
-    """Streams user input to the graph and returns all messages"""
-
-    config = create_config(thread_id)
-
-    # check invoke to get the last response instead
-    return graph.stream(
-        {
-            "user_query": user_input,
-            "unique_id": config.get("configurable", {"thread_id": str(uuid4())})[
-                "thread_id"
-            ],
-        },
-        config,
-        stream_mode="values",
-    )

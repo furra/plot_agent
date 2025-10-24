@@ -33,7 +33,7 @@ def user_confirm_sql_node(state: State) -> Command[Literal["extract_data", END]]
 
     is_approved = interrupt(
         f"Generated SQL query:\n{state["sql_query"]}\nDo you want to continue? (yes/no) "
-    )
+    ).lower() in {"yes", "y", "ye", "yeah", "sure"}
 
     if is_approved:
         return Command(goto="extract_data")
@@ -60,8 +60,8 @@ def user_confirm_data_node(state: State) -> Command[Literal["data_query", END]]:
     """This node intentionally pauses execution for user to confirm the the extracted data"""
 
     is_approved = interrupt(
-        f"First five rows of the data:\n{data_manager.data.head()}\nDo you want to continue? (yes/no)"
-    )
+        f"```First five rows of the data:\n{data_manager.data.head()}\n```\nDo you want to continue? (yes/no)"
+    ).lower() in {"yes", "y", "ye", "yeah", "sure"}
 
     if is_approved:
         return Command(goto="data_query")
@@ -72,7 +72,7 @@ def data_query_node(state: State) -> Command[Literal["plot", END]]:  # type: ign
     """This node prompts the user for information on the extracted data or terminate"""
 
     data_query: str = interrupt(
-        f"Write intructions for the data plot. Leave empty if you want to keep your original query: `{state.get("user_query")}`\nType 'quit' or 'stop' to exit."
+        f"Write intructions for the data plot. Leave empty for original query: \\`{state.get("user_query")}\\`\nType 'quit' or 'stop' to exit."
     ).strip()
 
     if data_query.lower() in ["quit", "stop", "end", "finish"]:

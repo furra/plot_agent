@@ -5,14 +5,16 @@ from uuid import uuid4
 
 import streamlit as st
 
-from workflow import initialize_graph, stream
+from workflow import create_config, initialize_graph
 
 load_dotenv()
 
 google_api_key = os.environ["GOOGLE_API_KEY"]
 
 if "conversation_id" not in st.session_state:
-    st.session_state.conversation_id = str(uuid4())
+    unique_id = str(uuid4())
+    st.session_state.conversation_id = unique_id
+    st.session_state.config = create_config(unique_id)
 
 # Set the app title
 st.title("Generate and interpret plots")
@@ -60,17 +62,19 @@ if prompt:
 if google_api_key:
     if prompt:
         with st.spinner("Thinking..."):
-            # use invoke instead
-            response = stream(workflow, prompt, st.session_state.conversation_id)
-            last_message = list(response)[-1]
+
+            response = workflow.invoke(
+                {"user_query": prompt, "unique_id": st.session_state.unique_id},
+                st.session_state.config,
+            )
         with st.chat_message("assistant"):
             st.image(
-                last_message["plot_data"].plot_path,
-                caption=last_message["plot_data"].plot_caption,
+                response["plot_data"].plot_path,
+                caption=response["plot_data"].plot_caption,
             )
-            st.markdown(last_message["plot_summary"])
+            st.markdown(response["plot_summary"])
         st.session_state.messages.append(
-            {"role": "assistant", "content": last_message["plot_summary"]}
+            {"role": "assistant", "content": response["plot_summary"]}
         )
 else:
     st.error("Please enter your Google API key in the sidebar to use the agent.")

@@ -65,10 +65,18 @@ class DataManager:
         data_path = self.save_data(uid)
         return data_path
 
+    def get_data_test(self, query: str, uid: str) -> str:
+        self.sql = query
+        path = Path("tests/data/data_12345.pkl").resolve()
+        with open(path, "rb") as file:
+            self.data = pickle.load(file)
+        return str(path)
+
 
 data_manager = DataManager()
 
 
+# TODO: check BAML tool calling
 class PlotAgent:
     llm: "AgentExecutor | CompiledStateGraph"
     provider: Literal["google", "groq"] = "google"
@@ -83,7 +91,8 @@ class PlotAgent:
         "Generate one plot file; you can do a multiplot if it applies. "
         "If the user's query is too complex, focus on the main question.\n\n"
         "Generate the plot first, then save the plot to a file (png) in the same folder that the data file is and "
-        "provide its path in your final output, e.g., `Final Answer: /path/to/plot/file.png` (without the backticks)"
+        "provide its path in your final output, e.g., `Final Answer: /path/to/plot/file.png` (without the backticks).\n"
+        "Choose a name for the plot and include the user's unique_id in the file name, e.g., `boxplot_categories_{unique_id}.png`"
     )
     data_columns: list[str]
 
@@ -121,6 +130,7 @@ class PlotAgent:
                     f"File is located at `{state.get("plot_data").data_path}`\n"
                     f"Data columns: {state.get("plot_data").data_columns}"
                     f"User's query:\n{state.get("data_query")}"
+                    f"User unique id:\n{state.get("unique_id")}"
                 )
             }
         elif self.provider == "groq":
@@ -160,6 +170,9 @@ class PlotAgent:
         response_content = self._extract_output(llm_response)
 
         return response_content
+
+    def plot_path_test(self, state: "State") -> str:
+        return str(Path("tests/data/plot_12345.png").resolve())
 
 
 chart_agent = PlotAgent()
