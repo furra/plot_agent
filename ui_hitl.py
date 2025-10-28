@@ -1,19 +1,58 @@
+import logging
+import json
 import os
 
+from baml_py.errors import BamlClientError
 from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from langgraph.types import Command
 from uuid import uuid4
-
 import streamlit as st
-
-from workflow import create_config
-from workflow_hitl import initialize_graph
 
 load_dotenv()
 
-google_api_key = os.environ["GOOGLE_API_KEY"]
+logging.basicConfig(level=logging.INFO)
 
-if "conversation_id" not in st.session_state or st.button("Clear history"):
+logger = logging.getLogger(__name__)
+
+google_api_key = os.environ.get("GOOGLE_API_KEY")
+
+# Sidebar for API key input
+st.sidebar.title("GOOGLE API KEY")
+with st.sidebar:
+    google_api_key = st.text_input("Enter your Google API Key", type="password")
+    os.environ["GOOGLE_API_KEY"] = google_api_key
+    if not google_api_key:
+        st.warning("Please enter your Google API key to use the agent.")
+
+if not google_api_key:
+    st.error("Please enter your Google API key in the sidebar to use the agent.")
+    st.stop()
+elif not st.session_state.get("valid_key"):
+    # validate key first, just once
+    try:
+        test_llm = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
+        test_llm.invoke("Return the number `1`. No other output.")
+    except ChatGoogleGenerativeAIError as e:
+        logger.error(e, exc_info=True)
+        if "400 API key not valid" in str(e):
+            user_message = "API key not valid. Please pass a valid API key."
+        else:
+            user_message = "Something went wrong with the request."
+
+        st.error(user_message)
+        st.stop()
+
+    st.session_state.valid_key = True
+    from workflow import create_config
+    from workflow_hitl import initialize_graph
+
+if (
+    google_api_key
+    and st.session_state.get("valid_key")
+    and ("conversation_id" not in st.session_state or st.button("Clear history"))
+):
     unique_id = str(uuid4())
     st.session_state.conversation_id = unique_id
     st.session_state.config = create_config(unique_id)
@@ -24,20 +63,14 @@ if "conversation_id" not in st.session_state or st.button("Clear history"):
         }
     ]
     st.session_state.images = {}
-    st.session_state.data_locked = False
+    st.session_state.data_picked = False
     st.session_state.graph = None
+    logger.info(f"Initializing state: {st.session_state}")
 
 # Set the app title
 st.title("Generate and interpret plots")
 
-# Sidebar for API key input
-with st.sidebar:
-    if google_api_key is None:
-        google_api_key = st.text_input("Enter your Google API Key", type="password")
-        st.warning("Please enter your Google API key to use the agent.")
-
 # Initialize resources only if API key is provided
-# st.write(st.session_state)
 if google_api_key and st.session_state.graph is None:
     with st.spinner("Initializing agent..."):
         st.session_state.graph = initialize_graph()
@@ -45,17 +78,18 @@ if google_api_key and st.session_state.graph is None:
 
 
 # Display chat history
-for i, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        if img := st.session_state.images.get(i):
-            st.image(img["image"], caption=img["caption"])
-        st.markdown(message["content"])
+if google_api_key:
+    for i, message in enumerate(st.session_state.messages):
+        with st.chat_message(message["role"]):
+            if img := st.session_state.images.get(i):
+                st.image(img["image"], caption=img["caption"])
+            st.markdown(message["content"])
 
 # Accept user input
 prompt = st.chat_input("User input...")
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
-    if st.session_state.data_locked:
+    if st.session_state.data_picked:
         st.session_state.params = Command(resume=prompt)
     else:
         st.session_state.params = {
@@ -70,10 +104,33 @@ if prompt:
 if google_api_key and st.session_state.graph is not None:
     if prompt:
         with st.spinner("Thinking..."):
-            response = st.session_state.graph.invoke(
-                st.session_state.params,
-                st.session_state.config,
-            )
+            try:
+                response = st.session_state.graph.invoke(
+                    st.session_state.params,
+                    st.session_state.config,
+                )
+            except BamlClientError as e:
+                logger.error(e, exc_info=True)
+                try:
+                    data = json.loads("{" + e.message.split("{", 1)[1])  # type: ignore
+                    user_message = data["error"]["message"]
+                except Exception as e:
+                    user_message = "Something went wrong with the request."
+                st.error(user_message)
+                st.stop()
+            except ChatGoogleGenerativeAIError as e:
+                logger.error(e, exc_info=True)
+                if "400 API key not valid" in str(e):
+                    user_message = "API key not valid. Please pass a valid API key."
+                else:
+                    user_message = "Something went wrong with the request."
+                st.error(user_message)
+                st.stop()
+            except Exception as e:
+                logger.error(e, exc_info=True)
+                user_message = "Something went wrong with the request."
+                st.error(user_message)
+                st.stop()
 
         if "__interrupt__" in response:
             interrupt_text = response["__interrupt__"][0].value.replace("\n", "  \n")
@@ -90,7 +147,7 @@ if google_api_key and st.session_state.graph is not None:
                         response["plot_data"].plot_path,
                         caption=response["plot_data"].plot_caption,
                     )
-                    st.markdown(response["plot_summary"])
+                    st.write(response["plot_summary"])
                     st.session_state.images[len(st.session_state.messages)] = {
                         "image": response["plot_data"].plot_path,
                         "caption": response["plot_data"].plot_caption,
@@ -103,13 +160,10 @@ if google_api_key and st.session_state.graph is not None:
             st.session_state.messages.append(
                 {"role": "assistant", "content": interrupt_text}
             )
-            st.session_state.data_locked = True
+            st.session_state.data_picked = True
         else:
-            st.session_state.data_locked = False
+            st.session_state.data_picked = False
             first_message = st.session_state.messages[0]
             with st.chat_message("assistant"):
                 st.markdown(first_message["content"])
             st.session_state.messages.append(first_message)
-
-else:
-    st.error("Please enter your Google API key in the sidebar to use the agent.")
