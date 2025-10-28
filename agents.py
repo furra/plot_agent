@@ -62,7 +62,7 @@ class DataManager:
         return path
 
     def generate_data_path(self, uid: str) -> Path:
-        path = Path(f"data/data_{uid}.pkl").resolve()
+        path = Path(f"/tmp/data_{uid}.pkl").resolve()
         return path
 
     def get_data_and_save(self, query: str, uid: str) -> str:
