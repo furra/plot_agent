@@ -10,8 +10,8 @@ load_dotenv()
 class AIAgent:
     """AI agent class that calls the simple graph or the human in the loop graph"""
 
-    def agent(self):
-        from workflow import initialize_graph, create_config
+    def base(self):
+        from src.workflow import initialize_graph, create_config
 
         graph = initialize_graph()
         unique_id = str(uuid4())
@@ -36,8 +36,8 @@ class AIAgent:
             print(f"Plot location: {output["plot_data"].plot_path}\n")
 
     def hitl(self):
-        from workflow import create_config
-        from workflow_hitl import initialize_graph
+        from src.workflow import create_config
+        from src.workflow.hitl import initialize_graph
 
         graph = initialize_graph()
         unique_id = str(uuid4())

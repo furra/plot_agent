@@ -6,8 +6,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command, interrupt
 
-from agents import chart_agent, data_manager, plot_summary_agent, sql_agent
-from workflow import PlotData, State
+from src.agents import chart_agent, data_manager, plot_summary_agent, sql_agent
+from src.workflow import PlotData, State
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph

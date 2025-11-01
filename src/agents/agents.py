@@ -11,14 +11,13 @@ from baml_py import Image
 from dotenv import load_dotenv
 from langchain.agents import initialize_agent, AgentType
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, HumanMessage
 
 from langfuse import observe
 from langfuse.langchain import CallbackHandler
-from langgraph.prebuilt import create_react_agent
 from pandas import DataFrame
 
-from tools import get_schema, python_repl_tool_react, python_repl_tool, run_sql
+from src.tools import get_schema, python_repl_tool, run_sql
+
 
 load_dotenv()
 
@@ -27,7 +26,7 @@ TEST_MODE = os.getenv("TEST_MODE", "False").lower() == "true"
 if TYPE_CHECKING:
     from langchain.agents.agent import AgentExecutor
     from langgraph.graph.state import CompiledStateGraph
-    from workflow import State
+    from src.workflow import State
 
 
 class SQLAgent:
@@ -35,6 +34,7 @@ class SQLAgent:
 
     @observe(name="sql-agent", as_type="generation")
     def invoke(self, query: str, engine: str = "sqlite") -> SQLQuery:
+        # TODO: move this to a test_agents file
         if TEST_MODE:
             return SQLQuery(
                 query="SELECT category, COUNT(*) FROM purchases GROUP BY category;",
@@ -89,7 +89,6 @@ data_manager = DataManager()
 # TODO: check BAML tool calling
 class PlotAgent:
     llm: "AgentExecutor | CompiledStateGraph"
-    provider: Literal["google", "groq"] = "google"
     prompt: str = (
         "You are a plotting agent that uses plotly and seaborn to generate plots."
         "You are working with a data extractor colleague. You will be given a pickled DataFrame file path to plot. "
@@ -107,70 +106,29 @@ class PlotAgent:
     data_columns: list[str]
 
     def __init__(self, provider: Literal["google", "groq"] = "google") -> None:
-        supported_providers = {"groq", "google"}
-        if provider not in supported_providers:
-            # TODO: Log this
-            return
-        if provider == "groq":
-            agent = create_react_agent(
-                init_chat_model("qwen/qwen3-32b", model_provider="groq"),
-                [python_repl_tool_react],
-                prompt=self.prompt,
-            )
-            self.provider = provider
-        elif provider == "google":
-            callback = CallbackHandler()
+        callback = CallbackHandler()
 
-            # TODO: look another alternative, it will be deprecated
-            agent = initialize_agent(
-                [python_repl_tool],
-                init_chat_model("gemini-2.5-flash", model_provider="google_genai"),
-                agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=True,
-                callbacks=[callback],
-            )
+        # TODO: look another alternative, it will be deprecated
+        agent = initialize_agent(
+            [python_repl_tool],
+            init_chat_model("gemini-2.5-flash", model_provider="google_genai"),
+            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            verbose=True,
+            callbacks=[callback],
+        )
 
         self.llm = agent
 
     def _prepare_input(self, state: "State") -> dict[str, Any]:
-        if self.provider == "google":
-            llm_input = {
-                "input": (
-                    f"{self.prompt}\n"
-                    f"File is located at `{state.get("plot_data").data_path}`\n"
-                    f"Data columns: {state.get("plot_data").data_columns}"
-                    f"User's query:\n{state.get("data_query")}"
-                    f"User unique id:\n{state.get("unique_id")}"
-                )
-            }
-        elif self.provider == "groq":
-            llm_input = {
-                "messages": [
-                    HumanMessage(
-                        content=state.get("data_query"),
-                        name="user",
-                    ),
-                    AIMessage(
-                        content=str(state.get("plot_data").plot_path),
-                        name="data_agent",
-                    ),
-                ]
-            }
-        else:
-            # TODO: log this
-            llm_input = {}
-        return llm_input
-
-    def _extract_output(self, llm_response: dict[str, Any]) -> str:
-        if self.provider == "google":
-            output = llm_response["output"]
-        elif self.provider == "groq":
-            # TODO: check react agent response
-            output = llm_response["messages"][-1].content
-        else:
-            # TODO: log this
-            output = ""
-        return output
+        return {
+            "input": (
+                f"{self.prompt}\n"
+                f"File is located at `{state.get("plot_data").data_path}`\n"
+                f"Data columns: {state.get("plot_data").data_columns}"
+                f"User's query:\n{state.get("data_query")}"
+                f"User unique id:\n{state.get("unique_id")}"
+            )
+        }
 
     @observe(name="plot-agent", as_type="generation")
     def invoke(self, state: "State") -> str:
@@ -179,7 +137,7 @@ class PlotAgent:
         llm_input = self._prepare_input(state)
         llm_response = self.llm.invoke(llm_input)
 
-        response_content = self._extract_output(llm_response)
+        response_content = llm_response["output"]
 
         return response_content
 

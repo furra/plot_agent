@@ -1,3 +1,4 @@
+from pathlib import Path
 import click
 import csv
 from enum import Enum as PyEnum
@@ -27,9 +28,19 @@ from sqlalchemy import (
     show_default=True,
     help="Name of the sqlite database.",
 )
-def create_db(data_file: str, db_name: str):
-    db_path = f"data/{db_name}.db"
-    engine = create_engine(f"sqlite:///{db_path}")
+@click.option(
+    "--db_path",
+    default="data/",
+    show_default=True,
+    help="Folder location of the sqlite database.",
+)
+def create_db(data_file: str, db_name: str, db_path: str):
+
+    db_folder = Path(db_path)
+    db_folder.mkdir(parents=True, exist_ok=True)
+
+    full_name = db_folder / f"{db_name}.db"
+    engine = create_engine(f"sqlite:///{full_name}")
     metadata_obj = MetaData()
 
     class Gender(PyEnum):
@@ -118,7 +129,7 @@ def create_db(data_file: str, db_name: str):
             transaction = conn.begin()
             conn.execute(insert(purchases_table), data)
             transaction.commit()
-        print(f"Database saved as: {db_path}")
+        print(f"Database saved as: {full_name}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 import logging
 import json
+import sys
+from pathlib import Path
 import os
 
 from baml_py.errors import BamlClientError
@@ -16,14 +18,22 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 google_api_key = os.environ.get("GOOGLE_API_KEY")
 
+test_mode = os.environ.get("TEST_MODE")
+if test_mode and test_mode.lower() == "true":
+    st.write("Running on TEST mode!")
+
 # Sidebar for API key input
-st.sidebar.title("GOOGLE API KEY")
 with st.sidebar:
-    google_api_key = st.text_input("Enter your Google API Key", type="password")
-    os.environ["GOOGLE_API_KEY"] = google_api_key
     if not google_api_key:
+        st.sidebar.title("GOOGLE API KEY")
+        google_api_key = st.text_input("Enter your Google API Key", type="password")
+        os.environ["GOOGLE_API_KEY"] = google_api_key
         st.warning("Please enter your Google API key to use the agent.")
 
 if not google_api_key:
@@ -45,14 +55,15 @@ elif not st.session_state.get("valid_key"):
         st.stop()
 
     st.session_state.valid_key = True
-    from workflow import create_config
-    from workflow_hitl import initialize_graph
 
 if (
     google_api_key
     and st.session_state.get("valid_key")
     and ("conversation_id" not in st.session_state or st.button("Clear history"))
 ):
+    from src.workflow import create_config
+    from src.workflow.hitl import initialize_graph
+
     unique_id = str(uuid4())
     st.session_state.conversation_id = unique_id
     st.session_state.config = create_config(unique_id)

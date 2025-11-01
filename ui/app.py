@@ -1,11 +1,17 @@
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from uuid import uuid4
 
 import streamlit as st
 
-from workflow import create_config, initialize_graph
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.workflow import create_config, initialize_graph
 
 load_dotenv()
 
@@ -13,7 +19,7 @@ google_api_key = os.environ["GOOGLE_API_KEY"]
 
 if "conversation_id" not in st.session_state:
     unique_id = str(uuid4())
-    st.session_state.conversation_id = unique_id
+    st.session_state.unique_id = unique_id
     st.session_state.config = create_config(unique_id)
 
 # Set the app title

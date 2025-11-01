@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 from pydantic import BaseModel
 
-from agents import chart_agent, data_manager, plot_summary_agent, sql_agent
+from src.agents import chart_agent, data_manager, plot_summary_agent, sql_agent
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
