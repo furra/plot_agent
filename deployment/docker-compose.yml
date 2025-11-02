@@ -1,0 +1,39 @@
+services:
+  plot-agent:
+    build:
+      context: ..
+      dockerfile: deployment/dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=/app/data/database.db
+    restart: unless-stopped
+    container_name: plot-agent
+    profiles: ["base"]
+
+  plot-agent-hitl:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=/app/data/database.db
+    command: streamlit run ui/app_hitl.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    restart: unless-stopped
+    container_name: plot-agent-hitl
+    profiles: ["hitl"]
+
+  plot-agent-hitl-test:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=/app/data/database.db
+      - TEST_MODE=true
+    command: streamlit run ui/app_hitl.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    restart: unless-stopped
+    container_name: plot-agent-hitl-test
+    profiles: ["test"]

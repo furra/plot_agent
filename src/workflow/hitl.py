@@ -6,7 +6,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command, interrupt
 
-from src.agents import chart_agent, data_manager, plot_summary_agent, sql_agent
+from src.agents import data_manager, plot_agent, plot_summary_agent, sql_agent
 from src.workflow import PlotData, State
 
 if TYPE_CHECKING:
@@ -60,7 +60,7 @@ def user_confirm_data_node(state: State) -> Command[Literal["data_query", END]]:
     """This node intentionally pauses execution for user to confirm the the extracted data"""
 
     is_approved = interrupt(
-        f"```First five rows of the data:\n{data_manager.data.head()}\n```\nDo you want to continue? (yes/no)"
+        f"First five rows of the data:\n```{data_manager.data.head()}\n```\nDo you want to continue? (yes/no)"
     ).lower() in {"yes", "y", "ye", "yeah", "sure"}
 
     if is_approved:
@@ -92,7 +92,7 @@ def data_query_node(state: State) -> Command[Literal["plot", END]]:  # type: ign
 
 
 def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
-    plot_path = chart_agent.invoke(state)
+    plot_path = plot_agent.invoke(state)
     plot_data = state.get("plot_data")
     plot_data.plot_path = plot_path
 

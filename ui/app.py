@@ -11,16 +11,13 @@ import streamlit as st
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.workflow import create_config, initialize_graph
 
 load_dotenv()
 
-google_api_key = os.environ["GOOGLE_API_KEY"]
+TEST_MODE = os.getenv("TEST_MODE", "false").lower() == "true"
 
-if "conversation_id" not in st.session_state:
-    unique_id = str(uuid4())
-    st.session_state.unique_id = unique_id
-    st.session_state.config = create_config(unique_id)
+google_api_key = "itworks" if TEST_MODE else os.getenv("GOOGLE_API_KEY")
+
 
 # Set the app title
 st.title("Generate and interpret plots")
@@ -38,6 +35,14 @@ if st.button("Clear history"):
 
 # Initialize resources only if API key is provided
 if google_api_key:
+    from src.workflow import create_config, initialize_graph
+    # TODO: add simple request to check if key is valid
+
+    if "conversation_id" not in st.session_state:
+        unique_id = str(uuid4())
+        st.session_state.unique_id = unique_id
+        st.session_state.config = create_config(unique_id)
+
     with st.spinner("Initializing agent..."):
         workflow = initialize_graph()
         st.success("Agent initialized successfully!", icon="🚀")

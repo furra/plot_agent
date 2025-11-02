@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 from pydantic import BaseModel
 
-from src.agents import chart_agent, data_manager, plot_summary_agent, sql_agent
+from src.agents import data_manager, plot_agent, plot_summary_agent, sql_agent
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -85,7 +85,7 @@ def extract_data_node(state: State) -> Command[Literal["plot"]]:
 
 
 def plot_node(state: State) -> Command[Literal["plot_summarizer"]]:
-    plot_path = chart_agent.invoke(state)
+    plot_path = plot_agent.invoke(state)
     plot_data = state.get("plot_data")
     plot_data.plot_path = plot_path
 

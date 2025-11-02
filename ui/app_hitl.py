@@ -27,34 +27,38 @@ google_api_key = os.environ.get("GOOGLE_API_KEY")
 test_mode = os.environ.get("TEST_MODE")
 if test_mode and test_mode.lower() == "true":
     st.write("Running on TEST mode!")
-
-# Sidebar for API key input
-with st.sidebar:
-    if not google_api_key:
-        st.sidebar.title("GOOGLE API KEY")
-        google_api_key = st.text_input("Enter your Google API Key", type="password")
-        os.environ["GOOGLE_API_KEY"] = google_api_key
-        st.warning("Please enter your Google API key to use the agent.")
-
-if not google_api_key:
-    st.error("Please enter your Google API key in the sidebar to use the agent.")
-    st.stop()
-elif not st.session_state.get("valid_key"):
-    # validate key first, just once
-    try:
-        test_llm = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
-        test_llm.invoke("Return the number `1`. No other output.")
-    except ChatGoogleGenerativeAIError as e:
-        logger.error(e, exc_info=True)
-        if "400 API key not valid" in str(e):
-            user_message = "API key not valid. Please pass a valid API key."
-        else:
-            user_message = "Something went wrong with the request."
-
-        st.error(user_message)
-        st.stop()
-
     st.session_state.valid_key = True
+    google_api_key = "itworks"
+else:
+    # Sidebar for API key input
+    with st.sidebar:
+        if not google_api_key:
+            st.sidebar.title("GOOGLE API KEY")
+            google_api_key = st.text_input("Enter your Google API Key", type="password")
+            os.environ["GOOGLE_API_KEY"] = google_api_key
+            st.warning("Please enter your Google API key to use the agent.")
+
+    if not google_api_key:
+        st.error("Please enter your Google API key in the sidebar to use the agent.")
+        st.stop()
+    elif not st.session_state.get("valid_key"):
+        # validate key first, just once
+        try:
+            test_llm = init_chat_model(
+                "gemini-2.5-flash", model_provider="google_genai"
+            )
+            test_llm.invoke("Return the number `1`. No other output.")
+        except ChatGoogleGenerativeAIError as e:
+            logger.error(e, exc_info=True)
+            if "400 API key not valid" in str(e):
+                user_message = "API key not valid. Please pass a valid API key."
+            else:
+                user_message = "Something went wrong with the request."
+
+            st.error(user_message)
+            st.stop()
+
+        st.session_state.valid_key = True
 
 if (
     google_api_key
@@ -82,7 +86,7 @@ if (
 st.title("Generate and interpret plots")
 
 # Initialize resources only if API key is provided
-if google_api_key and st.session_state.graph is None:
+if google_api_key and st.session_state.get("graph") is None:
     with st.spinner("Initializing agent..."):
         st.session_state.graph = initialize_graph()
         st.success("Agent initialized successfully!", icon="🚀")

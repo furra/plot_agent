@@ -1,3 +1,3 @@
-from .agents import chart_agent, data_manager, plot_summary_agent, sql_agent
+from .agents import data_manager, plot_agent, plot_summary_agent, sql_agent
 
-__all__ = ["chart_agent", "data_manager", "plot_summary_agent", "sql_agent"]
+__all__ = ["data_manager", "plot_agent", "plot_summary_agent", "sql_agent"]

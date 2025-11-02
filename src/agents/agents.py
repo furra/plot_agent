@@ -16,6 +16,12 @@ from langfuse import observe
 from langfuse.langchain import CallbackHandler
 from pandas import DataFrame
 
+from .tests.agents import (
+    PlotSummaryTestAgent,
+    PlotTestAgent,
+    SQLTestAgent,
+    TestDataManager,
+)
 from src.tools import get_schema, python_repl_tool, run_sql
 
 
@@ -34,11 +40,6 @@ class SQLAgent:
 
     @observe(name="sql-agent", as_type="generation")
     def invoke(self, query: str, engine: str = "sqlite") -> SQLQuery:
-        # TODO: move this to a test_agents file
-        if TEST_MODE:
-            return SQLQuery(
-                query="SELECT category, COUNT(*) FROM purchases GROUP BY category;",
-            )
         return b.GenerateSQLQuery(
             query,
             get_schema(),
@@ -46,7 +47,7 @@ class SQLAgent:
         )
 
 
-sql_agent = SQLAgent()
+sql_agent = SQLTestAgent() if TEST_MODE else SQLAgent()
 
 
 class DataManager:
@@ -66,8 +67,6 @@ class DataManager:
         return path
 
     def get_data_and_save(self, query: str, uid: str) -> str:
-        if TEST_MODE:
-            return self.get_data_test(query, uid)
         if not query:
             raise ValueError(f"SQL query is empty")
         self.sql = query
@@ -75,15 +74,8 @@ class DataManager:
         data_path = self.save_data(uid)
         return data_path
 
-    def get_data_test(self, query: str, uid: str) -> str:
-        self.sql = query
-        path = Path("tests/data/data_12345.pkl").resolve()
-        with open(path, "rb") as file:
-            self.data = pickle.load(file)
-        return str(path)
 
-
-data_manager = DataManager()
+data_manager = TestDataManager() if TEST_MODE else DataManager()
 
 
 # TODO: check BAML tool calling
@@ -132,8 +124,6 @@ class PlotAgent:
 
     @observe(name="plot-agent", as_type="generation")
     def invoke(self, state: "State") -> str:
-        if TEST_MODE:
-            return self.plot_path_test(state)
         llm_input = self._prepare_input(state)
         llm_response = self.llm.invoke(llm_input)
 
@@ -141,11 +131,8 @@ class PlotAgent:
 
         return response_content
 
-    def plot_path_test(self, state: "State") -> str:
-        return str(Path("tests/data/plot_12345.png").resolve())
 
-
-chart_agent = PlotAgent()
+plot_agent = PlotTestAgent() if TEST_MODE else PlotAgent()
 
 
 class PlotSummaryAgent:
@@ -170,17 +157,6 @@ class PlotSummaryAgent:
 
     @observe(name="sql-agent", as_type="generation")
     def invoke(self, state: "State") -> PlotSummary:
-        if TEST_MODE:
-            return PlotSummary(
-                summary=(
-                    "Among various product categories, clothing items are the most numerous, with approximately "
-                    "1700 instances. Accessories represent the second-largest category, totaling around 1200 "
-                    "instances. Footwear has a count of about 600, while outerwear is the least frequent category, "
-                    "with roughly 350 instances. This distribution suggests a significantly higher volume or demand "
-                    "for clothing and accessories compared to footwear and outerwear."
-                ),
-                caption="Distribution of item counts across different product categories.",
-            )
         img = self._get_base64_img(state.get("plot_data").plot_path)
         return b.GeneratePlotSummary(
             img,
@@ -188,4 +164,4 @@ class PlotSummaryAgent:
         )
 
 
-plot_summary_agent = PlotSummaryAgent()
+plot_summary_agent = PlotSummaryTestAgent() if TEST_MODE else PlotSummaryAgent()

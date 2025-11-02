@@ -5,7 +5,7 @@ description = "Langgraph agent that reads data from a database and generates plo
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "baml-py>=0.210.0",
+    "baml-py==0.212.0",
     "click>=8.3.0",
     "fire>=0.7.1",
     "kaleido>=1.1.0",
